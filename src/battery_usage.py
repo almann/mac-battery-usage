@@ -8,6 +8,7 @@ import sys as _sys
 import subprocess as _subprocess
 import collections.abc as _coll_types
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -108,6 +109,12 @@ def pmset_log_proc() -> _subprocess.Popen:
     return grep_proc
 
 
+@contextmanager
+def pmset_log() -> _coll_types.Iterator[str]:
+    with pmset_log_proc() as p:
+        yield from p.stdout
+
+
 _PMSET_PS_ARGS = ("pmset", "-g", "ps")
 _PMSET_PS_PATT = _re.compile(
     r"Now drawing from '(?P<source>[^']+)'.*?(?P<charge>\d+)%",
@@ -132,10 +139,9 @@ def main():
     if _sys.platform != _TARGET_PLATFORM:
         print(f"Expected macOS (darwin), found {_sys.platform}", file=_sys.stderr)
         _sys.exit(1)
-    with pmset_log_proc() as p:
-        events = parse_log(p.stdout)
-        for event in events:
-            print(f"Event:   {event}")
+    events = parse_log(pmset_log())
+    for event in events:
+        print(f"Event:   {event}")
     print(f"Current: {pmset_ps()}")
 
 

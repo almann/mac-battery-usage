@@ -4,6 +4,7 @@ Simple module that parses the macOS `pmset -g log` to get usage information to g
 Note that this is an approximation and may change between versions of macOS.
 """
 import re as _re
+import sys as _sys
 import subprocess as _subprocess
 
 from dataclasses import dataclass
@@ -64,17 +65,37 @@ def pmset_log_proc() -> _subprocess.Popen:
     return grep_proc
 
 
-def main():
-    import sys
+_PMSET_PS_ARGS = ("pmset", "-g", "ps")
+_PMSET_PS_PATT = _re.compile(
+    r"Now drawing from '(?P<source>[^']+)'.*?(?P<charge>\d+)%",
+    _re.DOTALL | _re.MULTILINE | _re.IGNORECASE,
+)
 
-    if sys.platform != _TARGET_PLATFORM:
-        print(f"Expected macOS (darwin), found {sys.platform}", file=sys.stderr)
-        sys.exit(1)
+
+def pmset_ps() -> ChargeEvent:
+    text = _subprocess.check_output(_PMSET_PS_ARGS, encoding="UTF-8")
+    match = _PMSET_PS_PATT.search(text)
+    print(f"Found: '{text}'", file=_sys.stderr)
+    if not match:
+        raise Exception("Could not determine battery status")
+
+    charge_type = (
+        ChargeType.BATT if match["source"] == "Battery Power" else ChargeType.AC
+    )
+    charge = int(match["charge"])
+    return ChargeEvent(datetime.now().astimezone(), charge_type, charge)
+
+
+def main():
+    if _sys.platform != _TARGET_PLATFORM:
+        print(f"Expected macOS (darwin), found {_sys.platform}", file=_sys.stderr)
+        _sys.exit(1)
     with pmset_log_proc() as p:
         count = 0
         for line in p.stdout:
             count += 1
         print(f"Found {count} lines!")
+    print(f"Current: {pmset_ps()}")
 
 
 if __name__ == "__main__":

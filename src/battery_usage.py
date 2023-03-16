@@ -63,9 +63,12 @@ def parse_ts(ts_text: str) -> datetime:
     return datetime.strptime(ts_text, "%Y-%m-%d %H:%M:%S %z")
 
 
+_EVENT_TYPE = ChargeEvent | DisplayEvent
+
+
 def parse_log(
     log_lines: _coll_types.Iterator[str],
-) -> _coll_types.Sequence[ChargeEvent | DisplayEvent]:
+) -> _coll_types.Sequence[_EVENT_TYPE]:
     events = []
     for line in log_lines:
         # is this a charge line?
@@ -110,9 +113,9 @@ def pmset_log_proc() -> _subprocess.Popen:
 
 
 @contextmanager
-def pmset_log() -> _coll_types.Iterator[str]:
+def pmset_log() -> _coll_types.Generator[_coll_types.Iterator[str], None, None]:
     with pmset_log_proc() as p:
-        yield from p.stdout
+        yield p.stdout
 
 
 _PMSET_PS_ARGS = ("pmset", "-g", "ps")
@@ -139,7 +142,8 @@ def main():
     if _sys.platform != _TARGET_PLATFORM:
         print(f"Expected macOS (darwin), found {_sys.platform}", file=_sys.stderr)
         _sys.exit(1)
-    events = parse_log(pmset_log())
+    with pmset_log() as log:
+        events = parse_log(log)
     for event in events:
         print(f"Event:   {event}")
     print(f"Current: {pmset_ps()}")

@@ -6,13 +6,14 @@ Note that this is an approximation and may change between versions of macOS.
 import re as _re
 import sys as _sys
 import subprocess as _subprocess
+import collections.abc as _coll_types
 
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
 _TARGET_PLATFORM = "darwin"
-_TIMESTAMP_PAT_STR = r"(?P<timestamp>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})"
+_TIMESTAMP_PAT_STR = r"(?P<timestamp>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\s[+-]\d{4})"
 _CHARGE_PAT = _re.compile(
     _TIMESTAMP_PAT_STR
     + r".*?Using (?P<type>AC|Batt|BATT).*?\(Charge:\s*(?P<charge>\d+)",
@@ -46,6 +47,38 @@ class DisplayEvent:
     state: DisplayState
 
 
+def parse_ts(ts_text: str) -> datetime:
+    """Parses the `pmset` log formatted timestamp into a local `datetime`"""
+    return datetime.strptime(ts_text, "%Y-%m-%d %H:%M:%S %z")
+
+
+def parse_log(
+    log_lines: _coll_types.Iterator[str],
+) -> _coll_types.Sequence[ChargeEvent | DisplayEvent]:
+    events = []
+    for line in log_lines:
+        # is this a charge line?
+        match = _CHARGE_PAT.match(line)
+        if match:
+            charge_text = match["type"].upper()
+            charge_type = ChargeType[charge_text]
+            ts = parse_ts(match["timestamp"])
+            charge_amount = int(match["charge"])
+            events.append(ChargeEvent(ts, charge_type, charge_amount))
+            continue
+
+        # TODO probably could refactor this into one match
+        # is this a display line?
+        match = _DISPLAY_PAT.match(line)
+        if not match:
+            continue
+        ts = parse_ts(match["timestamp"])
+        display_text = match["state"].upper()
+        display_state = DisplayState[display_text]
+        events.append(DisplayEvent(ts, display_state))
+    return events
+
+
 _GREP_ARGS = (
     "grep",
     "-e",
@@ -75,7 +108,6 @@ _PMSET_PS_PATT = _re.compile(
 def pmset_ps() -> ChargeEvent:
     text = _subprocess.check_output(_PMSET_PS_ARGS, encoding="UTF-8")
     match = _PMSET_PS_PATT.search(text)
-    print(f"Found: '{text}'", file=_sys.stderr)
     if not match:
         raise Exception("Could not determine battery status")
 
@@ -91,10 +123,8 @@ def main():
         print(f"Expected macOS (darwin), found {_sys.platform}", file=_sys.stderr)
         _sys.exit(1)
     with pmset_log_proc() as p:
-        count = 0
-        for line in p.stdout:
-            count += 1
-        print(f"Found {count} lines!")
+        events = parse_log(p.stdout)
+        print(f"Events: {len(events)}")
     print(f"Current: {pmset_ps()}")
 
 

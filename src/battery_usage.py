@@ -40,11 +40,21 @@ class ChargeEvent:
     type: ChargeType
     charge: int
 
+    def __str__(self):
+        return f"{ts_to_str(self.ts)}, {self.type.name}, {self.charge}%"
+
 
 @dataclass
 class DisplayEvent:
     ts: datetime
     state: DisplayState
+
+    def __str__(self):
+        return f"{ts_to_str(self.ts)}, Display {self.state.name}"
+
+
+def ts_to_str(ts: datetime):
+    return ts.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def parse_ts(ts_text: str) -> datetime:
@@ -124,7 +134,8 @@ def main():
         _sys.exit(1)
     with pmset_log_proc() as p:
         events = parse_log(p.stdout)
-        print(f"Events: {len(events)}")
+        for event in events:
+            print(f"Event:   {event}")
     print(f"Current: {pmset_ps()}")
 
 

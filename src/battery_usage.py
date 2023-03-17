@@ -138,6 +138,32 @@ def pmset_ps() -> ChargeEvent:
     return ChargeEvent(datetime.now().astimezone(), charge_type, charge)
 
 
+class UsageAggregator(object):
+    """Stores an aggregate for a battery session--a period of time off of AC"""
+
+    def __init__(self, start_event: ChargeEvent, display_state: DisplayState):
+        """Creates the stat, `start_event` is typically the switch to battery."""
+        self.__start_event = start_event
+        self.__start_display = display_state
+        self.__time_on = 0.0
+        self.__charge_on = 0.0
+        self.__time_off = 0.0
+        self.__charge_off = 0.0
+
+    def add_event(self, event: _EVENT_TYPE):
+        if isinstance(event, ChargeEvent):
+            return self.__add_charge_event(event)
+        if isinstance(event, DisplayEvent):
+            return self.__add_display_event(event)
+        raise TypeError(f"Could not add event for: {type(event)}")
+
+    def __add_charge_event(self, event: ChargeEvent):
+        raise NotImplementedError("Implement Me!")
+
+    def __add_display_event(self, event: DisplayEvent):
+        raise NotImplementedError("Implement Me!")
+
+
 def main():
     if _sys.platform != _TARGET_PLATFORM:
         print(f"Expected macOS (darwin), found {_sys.platform}", file=_sys.stderr)

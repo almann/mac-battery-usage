@@ -8,6 +8,7 @@ import sys as _sys
 import subprocess as _subprocess
 import collections.abc as _coll_types
 
+
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
@@ -138,30 +139,128 @@ def pmset_ps() -> ChargeEvent:
     return ChargeEvent(datetime.now().astimezone(), charge_type, charge)
 
 
+@dataclass
+class UsageSession:
+    session_type: ChargeType
+    session_start: datetime
+    session_end: datetime
+    display_usage_secs: tuple[float]
+    display_usage_charges: tuple[float]
+
+
 class UsageAggregator(object):
     """Stores an aggregate for a battery session--a period of time off of AC"""
 
-    def __init__(self, start_event: ChargeEvent, display_state: DisplayState):
-        """Creates the stat, `start_event` is typically the switch to battery."""
-        self.__start_event = start_event
-        self.__start_display = display_state
-        self.__time_on = 0.0
-        self.__charge_on = 0.0
-        self.__time_off = 0.0
-        self.__charge_off = 0.0
+    __session_start: datetime | None
+    __session_usage_secs: list[float]
+    __session_usage_charges: list[float]
+    __pending_usage_secs: list[float]
+    __prev_charge_event: ChargeEvent
+    __prev_display_event: DisplayEvent
+    __stats: list[UsageSession]
 
-    def add_event(self, event: _EVENT_TYPE):
+    def __init__(self, charge_event: ChargeEvent, display_event: DisplayEvent):
+        """Constructs the aggregator with the seed events.
+
+        The expectation is that the `charge_event` is the first AC event and the `display_event` is the first
+        known event.
+        """
+        self.__new_session(None)
+        self.__prev_charge_event = charge_event
+        self.__prev_display_event = display_event
+        self.__stats = []
+
+    def __new_session(self, session_start: datetime | None):
+        self.__session_start = session_start
+        self.__session_usage_secs = [0.0, 0.0]
+        self.__pending_usage_secs = [0.0, 0.0]
+        self.__session_usage_charges = [0.0, 0.0]
+
+    def __make_stat(self, session_end: datetime) -> UsageSession:
+        return UsageSession(
+            session_type=self.charge_type,
+            session_start=self.__session_start,
+            session_end=session_end,
+            display_usage_secs=tuple(self.__session_usage_secs),
+            display_usage_charges=tuple(self.__session_usage_charges),
+        )
+
+    @property
+    def stats(self) -> list[UsageSession]:
+        return self.__stats
+
+    @property
+    def charge_type(self) -> ChargeType:
+        return self.__prev_charge_event.type
+
+    @property
+    def charge(self) -> int:
+        return self.__prev_charge_event.charge
+
+    @property
+    def display_state(self) -> DisplayState:
+        return self.__prev_display_event.state
+
+    @property
+    def prev_ts(self) -> datetime:
+        c_ts = self.__prev_charge_event.ts
+        d_ts = self.__prev_display_event.ts
+        return c_ts if c_ts > d_ts else d_ts
+
+    def add_event(self, event: _EVENT_TYPE) -> UsageSession | None:
         if isinstance(event, ChargeEvent):
             return self.__add_charge_event(event)
         if isinstance(event, DisplayEvent):
             return self.__add_display_event(event)
         raise TypeError(f"Could not add event for: {type(event)}")
 
-    def __add_charge_event(self, event: ChargeEvent):
-        raise NotImplementedError("Implement Me!")
+    def __add_charge_event(self, event: ChargeEvent) -> UsageSession | None:
+        result = None
+        prev_charge_ts = self.__prev_charge_event.ts
+        curr_ts = event.ts
+        prev_charge_type = self.charge_type
+        prev_charge = self.charge
+        curr_charge = event.charge
+        # flush the pending times with the current amount of charge
+        # if there are screen on/off events and no charge events in the interval, we just average out the usage
+        window_charge = curr_charge - prev_charge
+        window_time = (curr_ts - prev_charge_ts).total_seconds()
+        pending_time = (curr_ts - self.prev_ts).total_seconds()
+        # add in pending time with display
+        self.__pending_usage_secs[self.display_state.value] += pending_time
+        assert sum(self.__pending_usage_secs) == window_time
+        pending_charges = list(
+            window_charge * (usage_secs / pending_time)
+            for usage_secs in self.__pending_usage_secs
+        )
+        self.__session_usage_secs = list(
+            x + y for x, y in zip(self.__session_usage_secs, self.__pending_usage_secs)
+        )
+        self.__session_usage_charges = list(
+            x + y for x, y in zip(self.__session_usage_charges, pending_charges)
+        )
 
-    def __add_display_event(self, event: DisplayEvent):
-        raise NotImplementedError("Implement Me!")
+        # flush a session on transition from one type to another
+        if prev_charge_type != event.type:
+            result = self.__make_stat(curr_ts)
+            self.__new_session(curr_ts)
+
+        self.__prev_charge_event = event
+        return result
+
+    def __add_display_event(self, event: DisplayEvent) -> None:
+        # only record on battery
+        if self.charge_type == ChargeType.BATT:
+            # record the previous usage up until now
+            secs = (event.ts - self.prev_ts).total_seconds()
+            self.__pending_usage_secs[self.display_state.value] += secs
+        self.__prev_display_event = event
+
+
+def calculate_usage(
+    events: _coll_types.Sequence[_EVENT_TYPE],
+) -> _coll_types.Sequence[UsageSession]:
+    raise NotImplementedError("Implement me!")
 
 
 def main():

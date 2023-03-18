@@ -69,7 +69,7 @@ _EVENT_TYPE = ChargeEvent | DisplayEvent
 
 def parse_log(
     log_lines: _coll_types.Iterator[str],
-) -> _coll_types.Sequence[_EVENT_TYPE]:
+) -> list[_EVENT_TYPE]:
     events = []
     for line in log_lines:
         # is this a charge line?
@@ -147,6 +147,13 @@ class UsageSession:
     display_usage_secs: tuple[float]
     display_usage_charges: tuple[float]
 
+    def __str__(self):
+        return (
+            f"{ts_to_str(self.session_start)} - {ts_to_str(self.session_end)}: "
+            + f"Usage Times {self.display_usage_secs}, "
+            + f"Usage Percentages {self.display_usage_charges}"
+        )
+
 
 class UsageAggregator(object):
     """Stores an aggregate for a battery session--a period of time off of AC"""
@@ -157,7 +164,6 @@ class UsageAggregator(object):
     __pending_usage_secs: list[float]
     __prev_charge_event: ChargeEvent
     __prev_display_event: DisplayEvent
-    __stats: list[UsageSession]
 
     def __init__(self, charge_event: ChargeEvent, display_event: DisplayEvent):
         """Constructs the aggregator with the seed events.
@@ -165,10 +171,9 @@ class UsageAggregator(object):
         The expectation is that the `charge_event` is the first AC event and the `display_event` is the first
         known event.
         """
-        self.__new_session(None)
+        self.__new_session(charge_event.ts)
         self.__prev_charge_event = charge_event
         self.__prev_display_event = display_event
-        self.__stats = []
 
     def __new_session(self, session_start: datetime | None):
         self.__session_start = session_start
@@ -176,7 +181,10 @@ class UsageAggregator(object):
         self.__pending_usage_secs = [0.0, 0.0]
         self.__session_usage_charges = [0.0, 0.0]
 
-    def __make_stat(self, session_end: datetime) -> UsageSession:
+    def make_stat(self, session_end: datetime | None = None) -> UsageSession:
+        """Constructs a session stat, if `session_end` is None, the previous charge event is used."""
+        if session_end is None:
+            session_end = self.__prev_charge_event.ts
         return UsageSession(
             session_type=self.charge_type,
             session_start=self.__session_start,
@@ -184,10 +192,6 @@ class UsageAggregator(object):
             display_usage_secs=tuple(self.__session_usage_secs),
             display_usage_charges=tuple(self.__session_usage_charges),
         )
-
-    @property
-    def stats(self) -> list[UsageSession]:
-        return self.__stats
 
     @property
     def charge_type(self) -> ChargeType:
@@ -206,6 +210,10 @@ class UsageAggregator(object):
         c_ts = self.__prev_charge_event.ts
         d_ts = self.__prev_display_event.ts
         return c_ts if c_ts > d_ts else d_ts
+
+    @property
+    def total_pending_time(self):
+        return sum(self.__pending_usage_secs)
 
     def add_event(self, event: _EVENT_TYPE) -> UsageSession | None:
         if isinstance(event, ChargeEvent):
@@ -228,9 +236,12 @@ class UsageAggregator(object):
         pending_time = (curr_ts - self.prev_ts).total_seconds()
         # add in pending time with display
         self.__pending_usage_secs[self.display_state.value] += pending_time
-        assert sum(self.__pending_usage_secs) == window_time
+        session_time = (curr_ts - self.__session_start).total_seconds()
+        assert (
+            self.total_pending_time == session_time
+        ), f"p_time({self.total_pending_time}) != w_time({session_time})"
         pending_charges = list(
-            window_charge * (usage_secs / pending_time)
+            0 if pending_time == 0 else window_charge * (usage_secs / pending_time)
             for usage_secs in self.__pending_usage_secs
         )
         self.__session_usage_secs = list(
@@ -242,25 +253,59 @@ class UsageAggregator(object):
 
         # flush a session on transition from one type to another
         if prev_charge_type != event.type:
-            result = self.__make_stat(curr_ts)
+            result = self.make_stat(curr_ts)
             self.__new_session(curr_ts)
 
         self.__prev_charge_event = event
         return result
 
     def __add_display_event(self, event: DisplayEvent) -> None:
-        # only record on battery
-        if self.charge_type == ChargeType.BATT:
-            # record the previous usage up until now
-            secs = (event.ts - self.prev_ts).total_seconds()
-            self.__pending_usage_secs[self.display_state.value] += secs
+        # record the previous usage up until now
+        secs = (event.ts - self.prev_ts).total_seconds()
+        self.__pending_usage_secs[self.display_state.value] += secs
         self.__prev_display_event = event
 
 
 def calculate_usage(
     events: _coll_types.Sequence[_EVENT_TYPE],
 ) -> _coll_types.Sequence[UsageSession]:
-    raise NotImplementedError("Implement me!")
+    """Aggregates an event log into usage stats per session.
+
+    The last event in the log is assumed to be the known open "end" of the log, so in general it will be a charge event
+    and will be used to flush the current stat for that active session.
+    """
+    # first we must find the first for charge events (so we know where the start is), and the "closest" display
+    # state before that
+    prev_charge_type = None
+    start_charge_event = None
+    start_display_event = None
+    for i, event in enumerate(events):
+        if isinstance(event, DisplayEvent):
+            # just remember the closest display event before our potential charge event
+            start_display_event = event
+            continue
+        if isinstance(event, ChargeEvent):
+            if prev_charge_type is not None:
+                # first charge event
+                prev_charge_type = event.type
+                continue
+            if prev_charge_type != event.type:
+                # we have a transition, so we know this is a start
+                start_charge_event = event
+                if start_display_event is not None and start_charge_event is not None:
+                    break
+                continue
+    else:
+        raise Exception("Could not find any start of AC/Battery session in log events")
+    aggregator = UsageAggregator(start_charge_event, start_display_event)
+    stats: list[UsageSession] = []
+    for event in events[i:]:
+        stat = aggregator.add_event(event)
+        if stat is not None:
+            stats.append(stat)
+    # make sure the "partial session" at the end gets captured
+    stats.append(aggregator.make_stat())
+    return stats
 
 
 def main():
@@ -269,9 +314,12 @@ def main():
         _sys.exit(1)
     with pmset_log() as log:
         events = parse_log(log)
+    events.append(pmset_ps())
     for event in events:
-        print(f"Event:   {event}")
-    print(f"Current: {pmset_ps()}")
+        print(f"Event: {event}")
+    stats = calculate_usage(events)
+    for stat in stats:
+        print(f"Stat:  {stat}")
 
 
 if __name__ == "__main__":

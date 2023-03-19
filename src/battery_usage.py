@@ -11,7 +11,7 @@ import collections.abc as _coll_types
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 
 _TARGET_PLATFORM = "darwin"
@@ -139,19 +139,46 @@ def pmset_ps() -> ChargeEvent:
     return ChargeEvent(datetime.now().astimezone(), charge_type, charge)
 
 
+_SECONDS_IN_HOUR = 3600
+_SECONDS_IN_MINUTE = 60
+
+
+def format_secs(total_secs: float) -> str:
+    td = timedelta(seconds=total_secs)
+    hours, min_secs = divmod(td.seconds, _SECONDS_IN_HOUR)
+    minutes = min_secs // _SECONDS_IN_MINUTE
+    return f"{td.days:>3}d {hours:02}h {minutes:02}m"
+
+
 @dataclass
 class UsageSession:
+    """A session of battery or charging.
+
+    Note that `display_usage_charges` is a tuple of amount of charge used (so negative for charging).
+    `display_usage_charges[DisplayType.ON.value]` is the amount of battery used while the screen is on.
+    `display_usage_secs[DisplayType.ON.value]` is the amount of time used when the screen is on.
+    """
+
     session_type: ChargeType
     session_start: datetime
     session_end: datetime
     display_usage_secs: tuple[float]
     display_usage_charges: tuple[float]
 
+    @property
+    def display_desc(self) -> tuple[str]:
+        return tuple(
+            f"Screen {DisplayState(i).name} {usage_charge:2.0f}% used in {format_secs(secs)}"
+            for i, (usage_charge, secs) in enumerate(
+                zip(self.display_usage_charges, self.display_usage_secs)
+            )
+        )
+
     def __str__(self):
         return (
-            f"{ts_to_str(self.session_start)} - {ts_to_str(self.session_end)}: "
-            + f"Usage Times {self.display_usage_secs}, "
-            + f"Usage Percentages {self.display_usage_charges}"
+            f"{self.session_type.name:>4} "
+            + f"{ts_to_str(self.session_start)} - {ts_to_str(self.session_end)}: "
+            + f"{', '.join(self.display_desc)}"
         )
 
 
@@ -160,7 +187,7 @@ class UsageAggregator(object):
 
     __session_start: datetime | None
     __session_usage_secs: list[float]
-    __session_usage_charges: list[float]
+    __session_charge_usages: list[float]
     __pending_usage_secs: list[float]
     __prev_charge_event: ChargeEvent
     __prev_display_event: DisplayEvent
@@ -179,7 +206,7 @@ class UsageAggregator(object):
         self.__session_start = session_start
         self.__session_usage_secs = [0.0, 0.0]
         self.__pending_usage_secs = [0.0, 0.0]
-        self.__session_usage_charges = [0.0, 0.0]
+        self.__session_charge_usages = [0.0, 0.0]
 
     def make_stat(self, session_end: datetime | None = None) -> UsageSession:
         """Constructs a session stat, if `session_end` is None, the previous charge event is used."""
@@ -190,7 +217,7 @@ class UsageAggregator(object):
             session_start=self.__session_start,
             session_end=session_end,
             display_usage_secs=tuple(self.__session_usage_secs),
-            display_usage_charges=tuple(self.__session_usage_charges),
+            display_usage_charges=tuple(self.__session_charge_usages),
         )
 
     @property
@@ -231,25 +258,27 @@ class UsageAggregator(object):
         curr_charge = event.charge
         # flush the pending times with the current amount of charge
         # if there are screen on/off events and no charge events in the interval, we just average out the usage
-        window_charge = curr_charge - prev_charge
+        window_charge_usage = -(curr_charge - prev_charge)
         window_time = (curr_ts - prev_charge_ts).total_seconds()
         pending_time = (curr_ts - self.prev_ts).total_seconds()
         # add in pending time with display
         self.__pending_usage_secs[self.display_state.value] += pending_time
         session_time = (curr_ts - self.__session_start).total_seconds()
         assert (
-            self.total_pending_time == session_time
+            self.total_pending_time == window_time
         ), f"p_time({self.total_pending_time}) != w_time({session_time})"
-        pending_charges = list(
-            0 if pending_time == 0 else window_charge * (usage_secs / pending_time)
+        pending_charge_usages = list(
+            0 if pending_time == 0 else window_charge_usage * (usage_secs / window_time)
             for usage_secs in self.__pending_usage_secs
         )
         self.__session_usage_secs = list(
             x + y for x, y in zip(self.__session_usage_secs, self.__pending_usage_secs)
         )
-        self.__session_usage_charges = list(
-            x + y for x, y in zip(self.__session_usage_charges, pending_charges)
+        self.__session_charge_usages = list(
+            x + y for x, y in zip(self.__session_charge_usages, pending_charge_usages)
         )
+        # reset pending
+        self.__pending_usage_secs = [0.0, 0.0]
 
         # flush a session on transition from one type to another
         if prev_charge_type != event.type:
@@ -319,7 +348,9 @@ def main():
         print(f"Event: {event}")
     stats = calculate_usage(events)
     for stat in stats:
-        print(f"Stat:  {stat}")
+        # Only print out stats that have some reasonable amount of time and used battery
+        if sum(stat.display_usage_secs) > 600 and sum(stat.display_usage_charges) > 1.0:
+            print(f"Stat:  {stat}")
 
 
 if __name__ == "__main__":

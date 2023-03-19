@@ -6,3 +6,31 @@ of the mechanics of the script to make it a bit easier to test and embed in othe
 
 [stack]: https://apple.stackexchange.com/questions/423962/get-total-screen-on-usage-since-last-full-charge
 [script]: https://github.com/DudeNr33/screen-on-time
+
+## Usage
+
+The script has a pretty straightforward invocation and should not require anything beyond the standard library to run:
+
+```shell
+$ python3 ./src/
+```
+
+## Development
+
+Using virtual environments is recommended along with installing Python via `pyenv`, however the built-in Python
+interpreter _should_ be sufficient:
+
+```shell
+$ (python3 -m venv ./venv && \
+    source ./venv/bin/activate && \
+    pip3 --require-virtualenv install -U pip setuptools wheel build black pytest && \
+    pip3 --require-virtualenv install -e .)
+```
+
+Cleaning up the editable install can be done via:
+
+```shell
+$ (source ./venv/bin/activate && \
+    pip3 --require-virtual-env uninstall mac-battery-usage && \
+    git clean -d -X -f src)
+```

@@ -1,5 +1,5 @@
 [project]
-name = "battery-usage"
+name = "mac-battery-usage"
 version = "0.0.1"
 dependencies = []
 

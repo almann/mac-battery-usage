@@ -343,9 +343,8 @@ def main():
         _sys.exit(1)
     with pmset_log() as log:
         events = parse_log(log)
+    # add in current charge state
     events.append(pmset_ps())
-    for event in events:
-        print(f"Event: {event}")
     stats = calculate_usage(events)
     for stat in stats:
         # Only print out stats that have some reasonable amount of time and used battery

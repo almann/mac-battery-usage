@@ -15,7 +15,7 @@ interpreter _should_ be sufficient:
 ```shell
 $ (python3 -m venv ./venv && \
     source ./venv/bin/activate && \
-    pip3 --require-virtualenv install -U pip setuptools wheel build black pytest && \
+    pip3 --require-virtualenv install -U pip setuptools wheel build black pytest py2app rumps && \
     pip3 --require-virtualenv install -e .)
 ```
 

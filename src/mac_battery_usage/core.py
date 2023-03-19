@@ -5,7 +5,6 @@ Note that this is an approximation and may change between versions of macOS.
 """
 import io as _io
 import re as _re
-import sys as _sys
 import subprocess as _subprocess
 import collections.abc as _coll_types
 
@@ -15,7 +14,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 
-_TARGET_PLATFORM = "darwin"
 _TIMESTAMP_PAT_STR = r"(?P<timestamp>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\s[+-]\d{4})"
 _CHARGE_PAT = _re.compile(
     _TIMESTAMP_PAT_STR
@@ -373,22 +371,3 @@ def calculate_usage(
     # make sure the "partial session" at the end gets captured
     stats.append(aggregator.make_stat())
     return stats
-
-
-def main():
-    if _sys.platform != _TARGET_PLATFORM:
-        print(f"Expected macOS (darwin), found {_sys.platform}", file=_sys.stderr)
-        _sys.exit(1)
-    with pmset_log() as log:
-        events = parse_log(log)
-    # add in current charge state
-    events.append(pmset_ps())
-    stats = calculate_usage(events)
-    for stat in stats:
-        # Only print out stats that have some reasonable amount of time and used battery
-        if sum(stat.display_usage_secs) > 300 and sum(stat.display_usage_charges) > 1.0:
-            print(f"{stat.pretty_str()}")
-
-
-if __name__ == "__main__":
-    main()

@@ -19,10 +19,16 @@ $ (python3 -m venv ./venv && \
     pip3 --require-virtualenv install -e .)
 ```
 
-Within the virtual ennvironments, the script can be run as a module:
+Within the virtual environment, the script can be run as a module:
 
 ```shell
 $ python3 -m mac_battery_usage
+```
+
+The menubar application can be run as follows:
+
+```shell
+$ python3 -m mac_battery_usage.menubar
 ```
 
 Cleaning up the editable install can be done via:

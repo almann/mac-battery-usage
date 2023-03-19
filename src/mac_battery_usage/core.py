@@ -373,7 +373,7 @@ def calculate_usage(
     return stats
 
 
-_MIN_DISPLAY_SECS = 300
+_MIN_DISPLAY_SECS = 1800
 _MIN_PERCENTAGE_USAGE = 1.0
 
 
@@ -385,9 +385,9 @@ def battery_usage_stats() -> _coll_types.Iterator[UsageSession]:
     events.append(pmset_ps())
     stats = calculate_usage(events)
     for stat in stats:
-        # Only generate out stats that have some reasonable amount of time and used battery
+        # Only generate out stats that have some reasonable amount of time or used battery
         if stat.start_event.type == ChargeType.BATT and (
             sum(stat.display_usage_secs) > _MIN_DISPLAY_SECS
-            and sum(stat.display_usage_charges) >= _MIN_PERCENTAGE_USAGE
+            or sum(stat.display_usage_charges) >= _MIN_PERCENTAGE_USAGE
         ):
             yield stat

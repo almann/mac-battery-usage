@@ -189,8 +189,8 @@ class UsageSession:
         print(
             f"{_DISPLAY_TEXT_MAPPING[self.start_event.type]} session",
             f"at {ts_to_str(self.start_event.ts)}",
-            f"for {format_secs(self.duration_secs)}",
-            f"from {float(self.start_event.charge):.0f}%",
+            f"for {format_secs(self.duration_secs):10}",
+            f"from {float(self.start_event.charge):3.0f}%",
             file=buf,
         )
         for display_type in (DisplayState.ON, DisplayState.OFF):
@@ -205,7 +205,7 @@ class UsageSession:
             )
             print(
                 f"Screen {_DISPLAY_TEXT_MAPPING[display_type].lower():3} {usage_text}",
-                f"{abs(usage_charge):2.0f}% battery during {format_secs(usage_secs)}",
+                f"{abs(usage_charge):2.0f}% battery during {format_secs(usage_secs):10}",
                 f"at {abs(usage_rate):5.2f}%/h",
                 file=buf,
             )

@@ -12,7 +12,7 @@ of the mechanics of the script to make it a bit easier to test and embed in othe
 The script has a pretty straightforward invocation and should not require anything beyond the standard library to run:
 
 ```shell
-$ python3 ./src/
+$ python3 ./src/mac-battery-usage.py
 ```
 
 ## Development
@@ -25,6 +25,12 @@ $ (python3 -m venv ./venv && \
     source ./venv/bin/activate && \
     pip3 --require-virtualenv install -U pip setuptools wheel build black pytest && \
     pip3 --require-virtualenv install -e .)
+```
+
+Within the virtual ennvironments, the script can be run as a module:
+
+```shell
+$ python3 -m mac_battery_usage
 ```
 
 Cleaning up the editable install can be done via:

@@ -12,7 +12,7 @@ _STAT_TEXT_LEN = 3
 # the number of previous stats to display
 _STAT_LEN = 5
 # menu placeholder for stat lines that don't exist
-_PLACEHOLDER_TEXT = "..." + (" " * 60)
+_PLACEHOLDER_TEXT = " " * 70
 
 
 def now_str() -> str:

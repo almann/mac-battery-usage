@@ -17,7 +17,7 @@ from enum import Enum
 _TIMESTAMP_PAT_STR = r"(?P<timestamp>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\s[+-]\d{4})"
 _CHARGE_PAT = _re.compile(
     _TIMESTAMP_PAT_STR
-    + r".*?Using (?P<type>AC|Batt|BATT).*?\(Charge:\s*(?P<charge>\d+)",
+    + r".*?Using (?P<type>AC|Batt|BATT).*?\(Charge:\s*(?P<charge>\d+)[%)]",
     _re.IGNORECASE,
 )
 _DISPLAY_PAT = _re.compile(
@@ -373,6 +373,10 @@ def calculate_usage(
     return stats
 
 
+_MIN_DISPLAY_SECS = 300
+_MIN_PERCENTAGE_USAGE = 1.0
+
+
 def battery_usage_stats() -> _coll_types.Iterator[UsageSession]:
     """Returns a filtered iterator of `UsageSession` for battery sessions"""
     with pmset_log() as log:
@@ -382,5 +386,8 @@ def battery_usage_stats() -> _coll_types.Iterator[UsageSession]:
     stats = calculate_usage(events)
     for stat in stats:
         # Only generate out stats that have some reasonable amount of time and used battery
-        if sum(stat.display_usage_secs) > 300 and sum(stat.display_usage_charges) > 1.0:
+        if stat.start_event.type == ChargeType.BATT and (
+            sum(stat.display_usage_secs) > _MIN_DISPLAY_SECS
+            and sum(stat.display_usage_charges) >= _MIN_PERCENTAGE_USAGE
+        ):
             yield stat

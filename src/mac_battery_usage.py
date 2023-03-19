@@ -3,6 +3,7 @@ Simple module that parses the macOS `pmset -g log` to get usage information to g
 
 Note that this is an approximation and may change between versions of macOS.
 """
+import io as _io
 import re as _re
 import sys as _sys
 import subprocess as _subprocess
@@ -150,6 +151,14 @@ def format_secs(total_secs: float) -> str:
     return f"{td.days}d {hours:>2}h {minutes:02}m"
 
 
+_DISPLAY_TEXT_MAPPING = {
+    ChargeType.BATT: "Battery",
+    ChargeType.AC: "AC",
+    DisplayState.OFF: "Off",
+    DisplayState.ON: "On",
+}
+
+
 @dataclass
 class UsageSession:
     """A session of battery or charging.
@@ -159,9 +168,8 @@ class UsageSession:
     `display_usage_secs[DisplayType.ON.value]` is the amount of time used when the screen is on.
     """
 
-    session_type: ChargeType
-    session_start: datetime
-    session_end: datetime
+    start_event: ChargeEvent
+    end_event: ChargeEvent
     display_usage_secs: tuple[float]
     display_usage_charges: tuple[float]
 
@@ -174,10 +182,42 @@ class UsageSession:
             )
         )
 
+    @property
+    def duration_secs(self):
+        return (self.end_event.ts - self.start_event.ts).total_seconds()
+
+    def pretty_str(self) -> str:
+        buf = _io.StringIO()
+        print(
+            f"{_DISPLAY_TEXT_MAPPING[self.start_event.type]} session",
+            f"at {ts_to_str(self.start_event.ts)}",
+            f"to {ts_to_str(self.end_event.ts)}",
+            f"({format_secs(self.duration_secs)})",
+            f"from {float(self.start_event.charge):3.0f}%",
+            file=buf,
+        )
+        for display_type in (DisplayState.ON, DisplayState.OFF):
+            idx = display_type.value
+            usage_secs = self.display_usage_secs[idx]
+            usage_charge = self.display_usage_charges[idx]
+            usage_text = "used" if usage_charge >= 0.0 else "charged"
+            usage_rate = (
+                0.0
+                if usage_secs == 0
+                else float(usage_charge) / (usage_secs / _SECONDS_IN_HOUR)
+            )
+            print(
+                f"  Screen {_DISPLAY_TEXT_MAPPING[display_type]:3} {usage_text}",
+                f"{abs(usage_charge):2.0f}% battery during {format_secs(usage_secs)}",
+                f"({abs(usage_rate):5.2f}%/h)",
+                file=buf,
+            )
+        return buf.getvalue()
+
     def __str__(self):
         return (
-            f"{self.session_type.name:>4} "
-            + f"{ts_to_str(self.session_start)} - {ts_to_str(self.session_end)}: "
+            f"{self.start_event.type.name:>4} "
+            + f"{ts_to_str(self.start_event.ts)} - {ts_to_str(self.end_event.ts)}: "
             + f"{', '.join(self.display_desc)}"
         )
 
@@ -185,7 +225,7 @@ class UsageSession:
 class UsageAggregator(object):
     """Stores an aggregate for a battery session--a period of time off of AC"""
 
-    __session_start: datetime | None
+    __session_start_event: ChargeEvent
     __session_usage_secs: list[float]
     __session_charge_usages: list[float]
     __pending_usage_secs: list[float]
@@ -198,24 +238,23 @@ class UsageAggregator(object):
         The expectation is that the `charge_event` is the first AC event and the `display_event` is the first
         known event.
         """
-        self.__new_session(charge_event.ts)
+        self.__new_session(charge_event)
         self.__prev_charge_event = charge_event
         self.__prev_display_event = display_event
 
-    def __new_session(self, session_start: datetime | None):
-        self.__session_start = session_start
+    def __new_session(self, session_start_event: ChargeEvent):
+        self.__session_start_event = session_start_event
         self.__session_usage_secs = [0.0, 0.0]
         self.__pending_usage_secs = [0.0, 0.0]
         self.__session_charge_usages = [0.0, 0.0]
 
-    def make_stat(self, session_end: datetime | None = None) -> UsageSession:
+    def make_stat(self, session_end_event: ChargeEvent | None = None) -> UsageSession:
         """Constructs a session stat, if `session_end` is None, the previous charge event is used."""
-        if session_end is None:
-            session_end = self.__prev_charge_event.ts
+        if session_end_event is None:
+            session_end_event = self.__prev_charge_event
         return UsageSession(
-            session_type=self.charge_type,
-            session_start=self.__session_start,
-            session_end=session_end,
+            start_event=self.__session_start_event,
+            end_event=session_end_event,
             display_usage_secs=tuple(self.__session_usage_secs),
             display_usage_charges=tuple(self.__session_charge_usages),
         )
@@ -263,7 +302,7 @@ class UsageAggregator(object):
         pending_time = (curr_ts - self.prev_ts).total_seconds()
         # add in pending time with display
         self.__pending_usage_secs[self.display_state.value] += pending_time
-        session_time = (curr_ts - self.__session_start).total_seconds()
+        session_time = (curr_ts - self.__session_start_event.ts).total_seconds()
         assert (
             self.total_pending_time == window_time
         ), f"p_time({self.total_pending_time}) != w_time({session_time})"
@@ -282,8 +321,8 @@ class UsageAggregator(object):
 
         # flush a session on transition from one type to another
         if prev_charge_type != event.type:
-            result = self.make_stat(curr_ts)
-            self.__new_session(curr_ts)
+            result = self.make_stat(event)
+            self.__new_session(event)
 
         self.__prev_charge_event = event
         return result
@@ -349,7 +388,7 @@ def main():
     for stat in stats:
         # Only print out stats that have some reasonable amount of time and used battery
         if sum(stat.display_usage_secs) > 600 and sum(stat.display_usage_charges) > 1.0:
-            print(f"Stat:  {stat}")
+            print(f"{stat.pretty_str()}")
 
 
 if __name__ == "__main__":

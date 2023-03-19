@@ -204,12 +204,12 @@ class UsageSession:
                 else float(usage_charge) / (usage_secs / _SECONDS_IN_HOUR)
             )
             print(
-                f"  Screen {_DISPLAY_TEXT_MAPPING[display_type]:3} {usage_text}",
-                f"{abs(usage_charge):2.0f}% battery during {format_secs(usage_secs):12}",
-                f"({abs(usage_rate):5.2f}%/h)",
+                f"Screen {_DISPLAY_TEXT_MAPPING[display_type].lower():3} {usage_text}",
+                f"{abs(usage_charge):2.0f}% battery during {format_secs(usage_secs)}",
+                f"at {abs(usage_rate):5.2f}%/h",
                 file=buf,
             )
-        return buf.getvalue()
+        return buf.getvalue().strip()
 
     def __str__(self):
         return (
@@ -371,3 +371,16 @@ def calculate_usage(
     # make sure the "partial session" at the end gets captured
     stats.append(aggregator.make_stat())
     return stats
+
+
+def battery_usage_stats() -> _coll_types.Iterator[UsageSession]:
+    """Returns a filtered iterator of `UsageSession` for battery sessions"""
+    with pmset_log() as log:
+        events = parse_log(log)
+    # add in current charge state
+    events.append(pmset_ps())
+    stats = calculate_usage(events)
+    for stat in stats:
+        # Only generate out stats that have some reasonable amount of time and used battery
+        if sum(stat.display_usage_secs) > 300 and sum(stat.display_usage_charges) > 1.0:
+            yield stat

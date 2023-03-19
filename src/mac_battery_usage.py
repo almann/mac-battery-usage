@@ -147,7 +147,7 @@ def format_secs(total_secs: float) -> str:
     td = timedelta(seconds=total_secs)
     hours, min_secs = divmod(td.seconds, _SECONDS_IN_HOUR)
     minutes = min_secs // _SECONDS_IN_MINUTE
-    return f"{td.days:>3}d {hours:02}h {minutes:02}m"
+    return f"{td.days}d {hours:>2}h {minutes:02}m"
 
 
 @dataclass

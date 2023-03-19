@@ -7,14 +7,6 @@ of the mechanics of the script to make it a bit easier to test and embed in othe
 [stack]: https://apple.stackexchange.com/questions/423962/get-total-screen-on-usage-since-last-full-charge
 [script]: https://github.com/DudeNr33/screen-on-time
 
-## Usage
-
-The script has a pretty straightforward invocation and should not require anything beyond the standard library to run:
-
-```shell
-$ python3 ./src/mac-battery-usage.py
-```
-
 ## Development
 
 Using virtual environments is recommended along with installing Python via `pyenv`, however the built-in Python

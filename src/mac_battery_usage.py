@@ -148,7 +148,7 @@ def format_secs(total_secs: float) -> str:
     td = timedelta(seconds=total_secs)
     hours, min_secs = divmod(td.seconds, _SECONDS_IN_HOUR)
     minutes = min_secs // _SECONDS_IN_MINUTE
-    return f"{td.days}d {hours:>2}h {minutes:02}m"
+    return f"{td.days}d {hours}h {minutes:02}m"
 
 
 _DISPLAY_TEXT_MAPPING = {
@@ -191,9 +191,8 @@ class UsageSession:
         print(
             f"{_DISPLAY_TEXT_MAPPING[self.start_event.type]} session",
             f"at {ts_to_str(self.start_event.ts)}",
-            f"to {ts_to_str(self.end_event.ts)}",
-            f"({format_secs(self.duration_secs)})",
-            f"from {float(self.start_event.charge):3.0f}%",
+            f"for {format_secs(self.duration_secs)}",
+            f"from {float(self.start_event.charge):.0f}%",
             file=buf,
         )
         for display_type in (DisplayState.ON, DisplayState.OFF):
@@ -208,7 +207,7 @@ class UsageSession:
             )
             print(
                 f"  Screen {_DISPLAY_TEXT_MAPPING[display_type]:3} {usage_text}",
-                f"{abs(usage_charge):2.0f}% battery during {format_secs(usage_secs)}",
+                f"{abs(usage_charge):2.0f}% battery during {format_secs(usage_secs):12}",
                 f"({abs(usage_rate):5.2f}%/h)",
                 file=buf,
             )
@@ -387,7 +386,7 @@ def main():
     stats = calculate_usage(events)
     for stat in stats:
         # Only print out stats that have some reasonable amount of time and used battery
-        if sum(stat.display_usage_secs) > 600 and sum(stat.display_usage_charges) > 1.0:
+        if sum(stat.display_usage_secs) > 300 and sum(stat.display_usage_charges) > 1.0:
             print(f"{stat.pretty_str()}")
 
 

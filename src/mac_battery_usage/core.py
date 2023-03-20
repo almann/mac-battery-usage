@@ -200,13 +200,16 @@ class UsageSession:
             usage_text = "used" if usage_charge >= 0.0 else "charged"
             usage_rate = (
                 0.0
-                if usage_secs == 0
+                if usage_secs <= 1.0 or usage_charge <= 0.1
                 else float(usage_charge) / (usage_secs / _SECONDS_IN_HOUR)
+            )
+            usage_est_hours_text = (
+                "  ∞ " if usage_rate == 0.0 else f"{100.0/abs(usage_rate):4.1f}"
             )
             print(
                 f"Screen {_DISPLAY_TEXT_MAPPING[display_type].lower():3} {usage_text}",
                 f"{abs(usage_charge):2.0f}% battery during {format_secs(usage_secs):10}",
-                f"at {abs(usage_rate):5.2f}%/h",
+                f"at {abs(usage_rate):4.1f}%/h (about {usage_est_hours_text}h per charge)",
                 file=buf,
             )
         return buf.getvalue().strip()

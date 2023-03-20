@@ -85,6 +85,8 @@ class UsageApp(_rumps.App):
             for j in range(_STAT_TEXT_LEN):
                 self.menu.add(self.__stat_menu_items[i + j])
             self.menu.add(_rumps.separator)
+        self.__refresh_menu_item = _rumps.MenuItem("Refresh")
+        self.menu.add(self.__refresh_menu_item)
 
         # setup threadpool to get the update
         self.__pool = _futures.ThreadPoolExecutor(max_workers=1)
@@ -97,6 +99,10 @@ class UsageApp(_rumps.App):
         # set up refresh
         self.__refresh_timer = _rumps.Timer(self.__refresh, _REFRESH_SECS)
         self.__refresh_timer.start()
+
+    @_rumps.clicked("Refresh")
+    def __click_refresh(self, _: _rumps.MenuItem):
+        self.__refresh()
 
     def __run_update(self):
         """Spawns a task to fetch battery status unconditionally."""
@@ -116,9 +122,10 @@ class UsageApp(_rumps.App):
         timer.stop()
         self.__pending = None
 
-    def __refresh(self, _: _rumps.Timer):
+    def __refresh(self, _: _rumps.Timer | None = None):
         if self.__pending is not None:
             return
+        self.__status_menu_item.title = f"Loading at {now_str()}..."
         self.__run_update()
         self.__update_ui_timer.start()
 

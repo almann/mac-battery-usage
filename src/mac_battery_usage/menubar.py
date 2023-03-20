@@ -67,6 +67,9 @@ def fetch_stats() -> list[str]:
     return lines
 
 
+_REFRESH_SECS = 900
+
+
 class UsageApp(_rumps.App):
     def __init__(self):
         super(UsageApp, self).__init__(name="📉")
@@ -88,18 +91,18 @@ class UsageApp(_rumps.App):
         self.__run_update()
 
         # set up UI update
-        self.__update_ui_timer = _rumps.Timer(self.__update_ui, 5)
+        self.__update_ui_timer = _rumps.Timer(self.__update_ui, 1)
         self.__update_ui_timer.start()
 
         # set up refresh
-        self.__refresh_timer = _rumps.Timer(self.__refresh, 300)
+        self.__refresh_timer = _rumps.Timer(self.__refresh, _REFRESH_SECS)
         self.__refresh_timer.start()
 
     def __run_update(self):
         """Spawns a task to fetch battery status unconditionally."""
         self.__pending = self.__pool.submit(fetch_stats)
 
-    def __update_ui(self, _: _rumps.Timer):
+    def __update_ui(self, timer: _rumps.Timer):
         if self.__pending is None or not self.__pending.done():
             return
         try:
@@ -110,12 +113,14 @@ class UsageApp(_rumps.App):
         except Exception as e:
             self.__status_menu_item.title = f"Error: {now_str()} - {str(e)}"
         # reset for refresh
+        timer.stop()
         self.__pending = None
 
     def __refresh(self, _: _rumps.Timer):
         if self.__pending is not None:
             return
         self.__run_update()
+        self.__update_ui_timer.start()
 
 
 def main():

@@ -71,8 +71,8 @@ _REFRESH_SECS = 900
 
 
 class UsageApp(_rumps.App):
-    def __init__(self):
-        super(UsageApp, self).__init__(name="📉")
+    def __init__(self, icon_path: str):
+        super(UsageApp, self).__init__(name="📉", icon=icon_path, template=True)
 
         # setup placeholder menu items
         self.__stat_menu_items = []
@@ -131,7 +131,11 @@ class UsageApp(_rumps.App):
 
 
 def main():
-    UsageApp().run()
+    import importlib.resources as rc
+
+    icon_res = rc.files("mac_battery_usage") / "menubar.icns"
+    with rc.as_file(icon_res) as icon_path:
+        UsageApp(str(icon_path)).run()
 
 
 if __name__ == "__main__":

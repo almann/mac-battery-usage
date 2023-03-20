@@ -4,7 +4,7 @@ APP = ["app/BatteryUsage.py"]
 DATA_FILES = []
 OPTIONS = {
     "argv_emulation": True,
-    "iconfile": "icons/application.icns",
+    "iconfile": "src/mac_battery_usage/application.icns",
     "plist": {
         "LSUIElement": True,
     },

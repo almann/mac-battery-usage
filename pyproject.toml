@@ -1,7 +1,13 @@
 [project]
-name = "mac-battery-usage"
+name = "BatteryUsage"
 version = "0.0.1"
-dependencies = []
+authors = [
+    {name = "Almann Goo", email = "almann.goo@gmail.com"},
+]
+description = "A simple script/menubar application for battery usage session information."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["rumps >= 0.4"]
 
 [build-system]
 requires = ["setuptools", "wheel"]

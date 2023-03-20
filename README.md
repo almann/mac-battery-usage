@@ -9,8 +9,7 @@ of the mechanics of the script to make it a bit easier to test and embed in othe
 
 ## Development
 
-Using virtual environments is recommended along with installing Python via `pyenv`, however the built-in Python
-interpreter _should_ be sufficient:
+Using virtual environments is recommended along with installing Python via `pyenv` for Python 3.11 or higher:
 
 ```shell
 $ (python3 -m venv ./venv && \
@@ -29,6 +28,12 @@ The menubar application can be run as follows:
 
 ```shell
 $ python3 -m mac_battery_usage.menubar
+```
+
+The macOS application bundle can be created with:
+
+```shell
+$ (rm -fr build dist && python3 setup.py py2app)
 ```
 
 Cleaning up the editable install can be done via:

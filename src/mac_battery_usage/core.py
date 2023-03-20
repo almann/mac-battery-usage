@@ -146,7 +146,7 @@ def format_secs(total_secs: float) -> str:
     td = timedelta(seconds=total_secs)
     hours, min_secs = divmod(td.seconds, _SECONDS_IN_HOUR)
     minutes = min_secs // _SECONDS_IN_MINUTE
-    return f"{td.days}d {hours}h {minutes:02}m"
+    return f"{td.days:>2}d {hours:02}h {minutes:02}m"
 
 
 _DISPLAY_TEXT_MAPPING = {
@@ -189,7 +189,7 @@ class UsageSession:
         print(
             f"{_DISPLAY_TEXT_MAPPING[self.start_event.type]} session",
             f"at {ts_to_str(self.start_event.ts)}",
-            f"for {format_secs(self.duration_secs):10}",
+            f"for {format_secs(self.duration_secs)}",
             f"from {float(self.start_event.charge):3.0f}%",
             file=buf,
         )
@@ -203,13 +203,15 @@ class UsageSession:
                 if usage_secs <= 1.0 or usage_charge <= 0.1
                 else float(usage_charge) / (usage_secs / _SECONDS_IN_HOUR)
             )
-            usage_est_hours_text = (
-                "  ∞ " if usage_rate == 0.0 else f"{100.0/abs(usage_rate):4.1f}"
-            )
+            if usage_rate == 0.0:
+                usage_est_hours_text = ""
+            else:
+                usage_est_secs = (100.0 / abs(usage_rate)) * _SECONDS_IN_HOUR
+                usage_est_hours_text = f"(≅{format_secs(usage_est_secs)} per charge)"
             print(
                 f"Screen {_DISPLAY_TEXT_MAPPING[display_type].lower():3} {usage_text}",
                 f"{abs(usage_charge):2.0f}% battery during {format_secs(usage_secs):10}",
-                f"at {abs(usage_rate):4.1f}%/h (about {usage_est_hours_text}h per charge)",
+                f"at {abs(usage_rate):4.1f}%/h {usage_est_hours_text}",
                 file=buf,
             )
         return buf.getvalue().strip()

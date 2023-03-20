@@ -92,7 +92,7 @@ class UsageApp(_rumps.App):
         self.__update_ui_timer.start()
 
         # set up refresh
-        self.__refresh_timer = _rumps.Timer(self.__refresh, 120)
+        self.__refresh_timer = _rumps.Timer(self.__refresh, 300)
         self.__refresh_timer.start()
 
     def __run_update(self):

@@ -4,7 +4,6 @@ black==23.1.0
 build==0.10.0
 click==8.1.3
 iniconfig==2.0.0
--e git+https://github.com/almann/mac-battery-usage.git@0f85dc163b14c4691ff7f7a49b536f21fa08978a#egg=mac_battery_usage
 macholib==1.16.2
 modulegraph==0.19.3
 mypy-extensions==1.0.0

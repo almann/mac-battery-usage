@@ -1,10 +1,10 @@
 from setuptools import setup
 
-APP = ["BatteryUsage.py"]
+APP = ["app/BatteryUsage.py"]
 DATA_FILES = []
 OPTIONS = {
     "argv_emulation": True,
-    "iconfile": "application.icns",
+    "iconfile": "icons/application.icns",
     "plist": {
         "LSUIElement": True,
     },

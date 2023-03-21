@@ -2,8 +2,12 @@
 import rumps
 import rumps as _rumps
 import concurrent.futures as _futures
+import Cocoa as _cocoa
+import AppKit as _appkit
 
 from datetime import datetime
+from dataclasses import dataclass
+from enum import Enum
 
 from . import core as _core
 
@@ -19,26 +23,36 @@ def now_str() -> str:
     return _core.ts_to_str(datetime.now().astimezone())
 
 
-def update_formatted_menu_item(menu_item: _rumps.MenuItem, text: str):
+class Color(Enum):
+    RED = _cocoa.NSColor.redColor()
+    BLUE = _cocoa.NSColor.blueColor()
+
+
+@dataclass
+class FetchResult:
+    charge_event: _core.ChargeEvent
+    stat_lines: list[str]
+
+
+def update_formatted_menu_item(
+    menu_item: _rumps.MenuItem, text: str, color: Color = Color.BLUE
+):
     """Updates the text of a menu item with formatted text."""
     # Adapted from https://github.com/jaredks/rumps/issues/30#issuecomment-70348881
-    from AppKit import NSAttributedString
     from PyObjCTools.Conversion import propertyListFromPythonCollection
-    from Cocoa import (
-        NSFont,
-        NSColor,
-        NSFontAttributeName,
-        NSForegroundColorAttributeName,
-    )
 
-    font = NSFont.fontWithName_size_("Monaco", 12.0)
-    color = NSColor.blueColor()
+    font = _cocoa.NSFont.fontWithName_size_("Monaco", 12.0)
     attributes = propertyListFromPythonCollection(
-        {NSFontAttributeName: font, NSForegroundColorAttributeName: color},
+        {
+            _cocoa.NSFontAttributeName: font,
+            _cocoa.NSForegroundColorAttributeName: color.value,
+        },
         conversionHelper=lambda x: x,
     )
 
-    string = NSAttributedString.alloc().initWithString_attributes_(text, attributes)
+    string = _appkit.NSAttributedString.alloc().initWithString_attributes_(
+        text, attributes
+    )
     menu_item._menuitem.setAttributedTitle_(string)
 
 
@@ -49,7 +63,7 @@ def formatted_menu_item(text) -> rumps.MenuItem:
     return menu_item
 
 
-def fetch_stats() -> list[str]:
+def fetch_stats() -> FetchResult:
     stats = list(_core.battery_usage_stats())
     if len(stats) == 0:
         raise Exception("No battery usage sessions")
@@ -64,7 +78,7 @@ def fetch_stats() -> list[str]:
     for i in range((_STAT_LEN - len(stats)) * _STAT_TEXT_LEN):
         lines.append(_PLACEHOLDER_TEXT)
     assert len(lines) == _STAT_LEN * _STAT_TEXT_LEN
-    return lines
+    return FetchResult(charge_event=_core.pmset_ps(), stat_lines=lines)
 
 
 _REFRESH_SECS = 900
@@ -112,9 +126,19 @@ class UsageApp(_rumps.App):
         if self.__pending is None or not self.__pending.done():
             return
         try:
-            lines = self.__pending.result()
-            for line, menu_item in zip(lines, self.__stat_menu_items):
-                update_formatted_menu_item(menu_item, line)
+            result: FetchResult = self.__pending.result()
+            for i, (line, menu_item) in enumerate(
+                zip(result.stat_lines, self.__stat_menu_items)
+            ):
+                # highlight the charge stat line if it is current and we're on battery
+                if (
+                    result.charge_event.type == _core.ChargeType.BATT
+                    and i < _STAT_TEXT_LEN
+                ):
+                    color = Color.RED
+                else:
+                    color = Color.BLUE
+                update_formatted_menu_item(menu_item, line, color)
             self.__status_menu_item.title = f"Updated: {now_str()}"
         except Exception as e:
             self.__status_menu_item.title = f"Error: {now_str()} - {str(e)}"

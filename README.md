@@ -38,6 +38,12 @@ The macOS application bundle can be created with:
 $ (rm -fr build dist && python3 setup.py py2app)
 ```
 
+The unit tests can be run with `pytest`:
+
+```shell
+$ pytest
+```
+
 Cleaning up the editable install can be done via:
 
 ```shell

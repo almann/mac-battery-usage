@@ -1,3 +1,6 @@
+[![CI Build](https://github.com/almann/mac-battery-usage/actions/workflows/ci.yml/badge.svg)](https://github.com/almann/mac-battery-usage/actions?query=workflow%3A%22Build+and+test%22)
+
+
 # Battery Usage for macOS
 
 This is a simple utility that is based on [this question][stack] on Stack Overflow and the associated [script][script]

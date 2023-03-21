@@ -1,4 +1,5 @@
 [![CI Build](https://github.com/almann/mac-battery-usage/actions/workflows/ci.yml/badge.svg)](https://github.com/almann/mac-battery-usage/actions?query=workflow%3A%22Build+and+test%22)
+[![License](https://img.shields.io/github/license/almann/mac-battery-usage)](https://github.com/almann/mac-battery-usage/blob/main/LICENSE)
 
 
 # Battery Usage for macOS

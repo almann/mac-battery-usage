@@ -48,6 +48,12 @@ The unit tests can be run with `pytest`:
 $ pytest
 ```
 
+The application bundle and installer DMG can be built with:
+
+```shell
+$ ./build-dmg.sh
+```
+
 Cleaning up the editable install can be done via:
 
 ```shell

@@ -24,8 +24,8 @@ def now_str() -> str:
 
 
 class Color(Enum):
-    RED = _cocoa.NSColor.redColor()
-    BLUE = _cocoa.NSColor.blueColor()
+    RED = _cocoa.NSColor.systemRedColor()
+    BLUE = _cocoa.NSColor.systemBlueColor()
 
 
 @dataclass
@@ -81,7 +81,7 @@ def fetch_stats() -> FetchResult:
     return FetchResult(charge_event=_core.pmset_ps(), stat_lines=lines)
 
 
-_REFRESH_SECS = 900
+_REFRESH_SECS = 300
 
 
 class UsageApp(_rumps.App):
